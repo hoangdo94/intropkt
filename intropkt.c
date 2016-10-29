@@ -2,14 +2,16 @@
 #include <linux/module.h>
 #include <linux/init.h>
 
+#include <linux/pci.h>
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
 #include <net/udp.h>
+#include "virtio_net.h"
 
 int t = 100; /* Time interval in ms */
 int p; /* Probability threshold */
 
-char* ifname = "eth1";
+char* ifname = "enp3s0f1";
 __u32 src_ip_addr = 0x0102a8c0;
 __u32 dst_ip_addr = 0x0103a8c0;
 __u64 src_mac_addr = 0x180373b2bb5b;
@@ -145,26 +147,32 @@ int init_module(void)
 {
 	printk(KERN_INFO "insmod intropkt\n");
 
-	struct net_device* dev = intropkt_find_net_device(ifname);
+	struct net_device *dev = intropkt_find_net_device(ifname);
 
-	struct sk_buff *skb = NULL;
+	// struct sk_buff *skb = NULL;
 
-	char *testdata = "this is a test data. hahahahahah";
+	// char *testdata = "this is a test data. hahahahahah";
 
-	skb = intropkt_create_skb(dev, testdata);
+	// skb = intropkt_create_skb(dev, testdata);
 
-	int ret = dev_queue_xmit(skb);
-	switch (ret) {
-	case NET_XMIT_SUCCESS:
-		printk(KERN_INFO "packet is sent\n");
-		break;
-	case NET_XMIT_DROP:
-	case NET_XMIT_CN:
-	case NETDEV_TX_BUSY:
-	default:
-		printk(KERN_INFO "packet is not sent\n");
-		break;
-	}
+	// int ret = dev_queue_xmit(skb);
+	// switch (ret) {
+	// case NET_XMIT_SUCCESS:
+	// 	printk(KERN_INFO "packet is sent\n");
+	// 	break;
+	// case NET_XMIT_DROP:
+	// case NET_XMIT_CN:
+	// case NETDEV_TX_BUSY:
+	// default:
+	// 	printk(KERN_INFO "packet is not sent\n");
+	// 	break;
+	// }
+
+	printk(KERN_INFO "net_device addr %lx\n", dev);
+
+	struct virtnet_info *vi = netdev_priv(dev);
+
+	printk(KERN_INFO "SVQ name%d\n", vi->svq->name);
 
 	return 0;
 }
