@@ -1,12 +1,13 @@
+#define DEBUG
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
 
-#include <linux/pci.h>
 #include <linux/skbuff.h>
 #include <linux/netdevice.h>
 #include <net/udp.h>
-#include "virtio_net.h"
+#include "intropkt_virtnet.h"
 
 int t = 100; /* Time interval in ms */
 int p; /* Probability threshold */
