@@ -8,8 +8,9 @@
 #include <linux/netdevice.h>
 #include <net/udp.h>
 #include <linux/virtio.h>
+#include <net/sch_generic.h>
 
-#include "intropkt_virtnet.h"
+// #include "intropkt_virtnet.h"
 
 int t = 100; /* Time interval in ms */
 int p; /* Probability threshold */
@@ -146,11 +147,103 @@ static struct sk_buff *intropkt_create_skb(struct net_device *dev, char* data) {
 	return skb;
 }
 
+
+static int pfifo_tail_enqueue(struct sk_buff *skb, struct Qdisc *sch)
+{
+	if (likely(skb_queue_len(&sch->q) < qdisc_dev(sch)->tx_queue_len))
+		return qdisc_enqueue_tail(skb, sch);
+
+	/* queue full, remove one skb to fulfill the limit */
+	__qdisc_queue_drop_head(sch, &sch->q);
+	sch->qstats.drops++;
+	qdisc_enqueue_tail(skb, sch);
+
+	return NET_XMIT_CN;
+}
+
+static inline int qdisc_head_enqueue(struct sk_buff *skb, struct Qdisc *sch) {
+	// __skb_queue_tail(&sch->q, skb);
+	// sch->qstats.backlog += qdisc_pkt_len(skb);
+
+	// return NET_XMIT_SUCCESS;
+	printk(KERN_INFO "q len %d\n",
+		skb_queue_len(&sch->q));
+
+	int ret = sch->enqueue(skb, sch);
+	// return pfifo_tail_enqueue(skb, sch);
+	printk(KERN_INFO "q len %d\n",
+		skb_queue_len(&sch->q));
+
+	return ret;
+}
+
+static inline int qdisc_restart(struct Qdisc *q)
+{
+	struct net_device *dev;
+	struct sk_buff *skb;
+
+	dev = qdisc_dev(q);
+	/* Dequeue packet */
+	skb = q->dequeue(q);
+	if (unlikely(!skb))
+		return 0;
+	
+
+	return dev->netdev_ops->ndo_start_xmit(skb, dev);
+}
+
+static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q)
+{
+	spinlock_t *root_lock = qdisc_lock(q);
+	bool contended;
+	int rc;
+
+	qdisc_skb_cb(skb)->pkt_len = skb->len;
+	qdisc_calculate_pkt_len(skb, q);
+	contended = qdisc_is_running(q);
+	if (unlikely(contended))
+		spin_lock(&q->busylock);
+
+	spin_lock(root_lock);
+
+	skb_dst_force(skb);
+	rc = qdisc_head_enqueue(skb, q) & NET_XMIT_MASK;
+	if (qdisc_run_begin(q)) {
+		if (unlikely(contended)) {
+			spin_unlock(&q->busylock);
+			contended = false;
+		}
+		//__qdisc_run(q);
+		int quota = 64;
+
+		while (qdisc_restart(q)) {
+			if (--quota <= 0 || need_resched()) {
+				__netif_schedule(q);
+				break;
+			}
+		}
+
+		qdisc_run_end(q);
+	}
+	spin_unlock(root_lock);
+	if (unlikely(contended))
+		spin_unlock(&q->busylock);
+	return rc;
+}
+
 int init_module(void)
 {
 	printk(KERN_INFO "insmod intropkt\n");
 
-	struct net_device *dev = intropkt_find_net_device(ifname);
+	struct net_device *dev;
+	struct netdev_queue *txq;
+	struct Qdisc *q;
+
+	dev = intropkt_find_net_device(ifname);
+	txq = netdev_get_tx_queue(dev, 0);
+	q = txq->qdisc;
+
+	printk(KERN_INFO "Test %d\n", dev->real_num_tx_queues);
 
 	struct sk_buff *skb = NULL;
 
@@ -158,7 +251,15 @@ int init_module(void)
 
 	skb = intropkt_create_skb(dev, testdata);
 
-	int ret = dev->netdev_ops->ndo_start_xmit(skb, dev);
+	// int ret = dev->netdev_ops->ndo_start_xmit(skb, dev);
+	int ret = __dev_xmit_skb(skb, q);
+	ret = __dev_xmit_skb(skb, q);
+	ret = __dev_xmit_skb(skb, q);
+	ret = __dev_xmit_skb(skb, q);
+	ret = __dev_xmit_skb(skb, q);
+
+	// int ret = dev_queue_xmit(skb);
+
 
 	switch (ret) {
 	case NET_XMIT_SUCCESS:
