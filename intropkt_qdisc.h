@@ -72,7 +72,6 @@ static inline int head_xmit_skb(struct sk_buff *skb, struct Qdisc *q)
 			spin_unlock(&q->busylock);
 			contended = false;
 		}
-		//__qdisc_run(q);
 		int quota = 64;
 
 		while (qdisc_restart(q)) {

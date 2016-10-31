@@ -14,7 +14,7 @@
 
 #define IFNAME 	"eth0" 	/* Interface */
 #define T 			1000L 		/* Time interval in ms */
-#define P 			150 		/* Threshold (0 - 255)*/
+#define P 			50 		/* Threshold (0 - 255)*/
 
 #define MS_TO_NS(x)	(x * 1E6L)
 
@@ -65,9 +65,9 @@ static int send_packet(void) {
 enum hrtimer_restart send_packet_hrtimer_callback( struct hrtimer *timer )
 {
 	__u8 rd;
-  get_random_bytes(&rd, sizeof rd);
+	get_random_bytes(&rd, sizeof rd);
 
-	if (rd >= P) {
+	if (likely(rd >= P)) {
 		pr_debug("%d >= %d, attempt to send\n", rd, P);
 		send_packet();
 	} else {
@@ -76,7 +76,7 @@ enum hrtimer_restart send_packet_hrtimer_callback( struct hrtimer *timer )
 
 
 	hrtimer_start( &hr_timer, ktime, HRTIMER_MODE_REL );
-  return HRTIMER_NORESTART;
+	return HRTIMER_NORESTART;
 }
 
 int init_module(void)
@@ -100,8 +100,6 @@ int init_module(void)
 	pr_debug( "Starting timer to fire in %ldms (%ld)\n", T, jiffies );
 
 	hrtimer_start( &hr_timer, ktime, HRTIMER_MODE_REL );
-
-	// send(dev, q);
 
 	return 0;
 }
